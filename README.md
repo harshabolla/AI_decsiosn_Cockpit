@@ -8,7 +8,7 @@
 
 ## 🌟 Overview
 
-The **Opella AI Decision Cockpit** is an enterprise-grade AI and data platform designed to bridge executive decision-makers with complex enterprise data warehouses (Snowflake, Databricks, DuckDB) and unstructured organizational knowledge (RAG).
+The ** AI Decision Cockpit** is an enterprise-grade AI and data platform designed to bridge executive decision-makers with complex enterprise data warehouses (Snowflake, Databricks, DuckDB) and unstructured organizational knowledge (RAG).
 
 Rather than serving as a black-box chatbot, the Cockpit provides **full governance, transparency, and traceability** at every step:
 - **Governed Semantic Layer**: Maps business questions to vetted definitions, dimensions, and metric formulas.
