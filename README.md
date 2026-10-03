@@ -1,5 +1,5 @@
-<<<<<<< HEAD
-# Opella AI Decision Cockpit
+
+# AI Decision Cockpit
 
 > **Enterprise Multimodal AI & Data Engineering Platform**  
 > Conversational analytics, governed text-to-SQL, multi-agent orchestration, and decision support for Commercial, Finance, and Supply Chain intelligence.
@@ -105,4 +105,4 @@ pytest tests/
 =======
 # AI_decsiosn_Cockpit
 
->>>>>>> 719633a101d017e7f13a2b6947cf02c39ff4d716
+
