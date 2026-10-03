@@ -1,0 +1,50 @@
+version: 2
+
+sources:
+  - name: raw_erp
+    database: OPELLA_RAW
+    schema: ERP
+    tables:
+      - name: sales_transactions
+        description: "Raw transaction data from SAP/Oracle ERP"
+        columns:
+          - name: transaction_id
+            tests:
+              - unique
+              - not_null
+
+  - name: raw_wms
+    database: OPELLA_RAW
+    schema: WMS
+    tables:
+      - name: inventory_snapshots
+        description: "Daily warehouse inventory snapshots"
+
+  - name: raw_mdm
+    database: OPELLA_RAW
+    schema: MDM
+    tables:
+      - name: product_master
+        description: "Authoritative product master data"
+
+models:
+  - name: stg_sales
+    description: "Cleaned and typed sales transactions"
+    columns:
+      - name: sale_id
+        tests:
+          - unique
+          - not_null
+      - name: net_sales
+        tests:
+          - not_null
+
+  - name: fct_sales_monthly
+    description: "Monthly sales mart by product, region, and channel"
+    columns:
+      - name: product_name
+        tests:
+          - not_null
+      - name: total_net_sales
+        tests:
+          - not_null
