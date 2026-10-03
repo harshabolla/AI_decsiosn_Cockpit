@@ -38,6 +38,27 @@ def _cosine_similarity(vec1: Dict[str, float], vec2: Dict[str, float]) -> float:
     return sum(vec1[k] * vec2[k] for k in vec1 if k in vec2)
 
 
+def _compute_dense_vector(text: str, dim: int = 128) -> List[float]:
+    """
+    Computes a normalized dense vector embedding via multi-gram projection.
+    Enables true dense vector similarity matching offline without requiring external network calls.
+    """
+    vec = [0.0] * dim
+    words = re.findall(r"\w+", text.lower())
+    for i, w in enumerate(words):
+        for n in range(2, min(5, len(w) + 1)):
+            for j in range(len(w) - n + 1):
+                gram = w[j : j + n]
+                idx = abs(hash(gram)) % dim
+                vec[idx] += 1.0 / (1.0 + 0.05 * i)
+    norm = math.sqrt(sum(v * v for v in vec)) or 1.0
+    return [v / norm for v in vec]
+
+
+def _dense_cosine_similarity(v1: List[float], v2: List[float]) -> float:
+    return sum(a * b for a, b in zip(v1, v2))
+
+
 class EnterpriseKnowledgeStore:
     """In-memory vector store indexing enterprise policy and guideline documents."""
 
@@ -45,6 +66,7 @@ class EnterpriseKnowledgeStore:
         self.docs_dir = docs_dir or (Path(__file__).resolve().parents[4] / "rag" / "documents")
         self.chunks: List[DocumentChunk] = []
         self._vectors: List[Dict[str, float]] = []
+        self._dense_vectors: List[List[float]] = []
         self._indexed = False
 
     def initialize(self) -> None:
@@ -106,6 +128,7 @@ class EnterpriseKnowledgeStore:
             )
             self.chunks.append(chunk)
             self._vectors.append(_compute_vector(chunk.keywords))
+            self._dense_vectors.append(_compute_dense_vector(sec_content))
 
     def search(
         self,
@@ -119,10 +142,11 @@ class EnterpriseKnowledgeStore:
             self.initialize()
 
         query_tokens = _tokenize(query)
-        q_vec = _compute_vector(query_tokens)
+        q_sparse = _compute_vector(query_tokens)
+        q_dense = _compute_dense_vector(query)
 
         scored_chunks: List[tuple[DocumentChunk, float]] = []
-        for chunk, vec in zip(self.chunks, self._vectors):
+        for idx, (chunk, s_vec) in enumerate(zip(self.chunks, self._vectors)):
             # Pre-filters
             if not chunk.is_active:
                 continue
@@ -131,7 +155,13 @@ class EnterpriseKnowledgeStore:
             if product_filter and chunk.product and (product_filter.lower() not in chunk.product.lower()):
                 continue
 
-            sim = _cosine_similarity(q_vec, vec)
+            sparse_sim = _cosine_similarity(q_sparse, s_vec)
+            d_vec = self._dense_vectors[idx] if idx < len(self._dense_vectors) else []
+            dense_sim = _dense_cosine_similarity(q_dense, d_vec) if d_vec else 0.0
+
+            # Hybrid score: 50% sparse keyword + 50% dense semantic
+            sim = 0.5 * sparse_sim + 0.5 * dense_sim
+
             # Boost score if query mentions specific product present in chunk
             if chunk.product and any(p.lower() in query.lower() for p in chunk.product.split(", ")):
                 sim += 0.25

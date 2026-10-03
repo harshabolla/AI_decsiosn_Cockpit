@@ -28,6 +28,7 @@ from app.observability.tracer import RequestTracer, TraceEvent
 from app.workflows.langgraph_supervisor import get_graph
 from app.agents.types import AgentState
 from app.tools.servicenow_tools import CreateIncidentTool, RequestApprovalTool
+from app.memory.store import get_conversation_memory
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["chat"])
@@ -55,10 +56,18 @@ async def _run_pipeline(
 
     try:
         graph = get_graph()
+        conv_id = request.conversation_id or str(uuid.uuid4())
+        memory = get_conversation_memory()
+        prior_turns = await memory.get_context_turns(conv_id, limit=5)
+
         initial_state: AgentState = {
             "user_input": request.message,
             "raw_input": request.message,
-            "conversation_id": request.conversation_id or str(uuid.uuid4()),
+            "conversation_id": conv_id,
+            "conversation_history": [
+                {"role": "user", "content": t.user_input, "answer": t.assistant_answer}
+                for t in prior_turns
+            ],
             "tracer": tracer,
             "warnings": [],
             "kpis": [],
@@ -183,6 +192,22 @@ async def _run_pipeline(
             warnings=final_state.get("warnings", []),
             adapter_note=adapter_status.get("disclaimer"),
         )
+
+        # Record conversation turn in memory
+        try:
+            intent_res = final_state.get("intent")
+            await memory.add_turn(
+                session_id=conv_id,
+                user_input=request.message,
+                assistant_answer=final_ans,
+                intent_type=intent_res.intent_type.value if intent_res else None,
+                kpis=final_state.get("kpis", []),
+                sql_executed=gen_sql,
+                tables_referenced=sql_plan.tables if sql_plan else [],
+                latency_ms=tracer.total_duration_ms if hasattr(tracer, "total_duration_ms") else 0.0,
+            )
+        except Exception as mem_err:
+            logger.warning("conversation_memory_save_failed", error=str(mem_err))
 
         await event_queue.put(("response", response.model_dump()))
     except Exception as e:

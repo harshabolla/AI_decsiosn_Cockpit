@@ -277,6 +277,25 @@ class ModelRouter:
             f"Last error: {last_error}"
         ) from last_error
 
+    async def complete(
+        self,
+        task: LLMTask,
+        messages: List[Dict[str, Any]],
+        response_format: Optional[Dict[str, Any]] = None,
+        temperature: float = 0.1,
+        max_tokens: int = 2048,
+        retries: int = 1,
+    ) -> LLMResponse:
+        """Backward-compatible complete() alias for generate()."""
+        return await self.generate(
+            task=task,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+            retries=retries,
+        )
+
     async def get_all_health(self) -> Dict[str, ProviderHealth]:
         """
         Return health status for all configured providers.

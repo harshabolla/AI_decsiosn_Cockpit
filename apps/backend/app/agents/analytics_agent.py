@@ -18,6 +18,8 @@ from app.data import get_warehouse_client, WarehouseClient
 from app.llm.model_router import get_model_router, ModelRouter, LLMTask
 from app.llm.prompt_registry import get_prompt_registry, PromptRegistry
 from app.security.sql_validator import validate_sql
+from app.services.sql_planner import SQLPlanner, get_sql_planner
+from app.services.sql_generator import SQLGenerator, get_sql_generator
 
 logger = structlog.get_logger(__name__)
 
@@ -31,72 +33,30 @@ class AnalyticsAgent(BaseAgent[AgentState]):
         warehouse: WarehouseClient | None = None,
         router: ModelRouter | None = None,
         registry: PromptRegistry | None = None,
+        planner: SQLPlanner | None = None,
+        generator: SQLGenerator | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.warehouse = warehouse or get_warehouse_client()
         self.router = router or get_model_router()
         self.registry = registry or get_prompt_registry()
+        self.planner = planner or get_sql_planner()
+        self.generator = generator or get_sql_generator()
 
     def validate_input(self, state: AgentState) -> None:
         if "semantic_context" not in state and "intent" not in state:
             raise ValueError("AnalyticsAgent requires 'semantic_context' or 'intent' in state.")
 
     async def process(self, state: AgentState) -> AgentState:
-        intent = state.get("intent")
-        sem_ctx = state.get("semantic_context")
+        # 1. Analytical Query Planning
+        plan = await self.planner.create_plan(state)
+        state["sql_plan"] = plan
 
-        schema_text = sem_ctx.schema_context if sem_ctx else "SELECT * FROM fact_sales;"
-        intent_json = json.dumps(intent.model_dump() if intent else {}, indent=2)
-
-        # 1. SQL Generation via LLM with fallback
-        sql = ""
-        sql_spec: dict[str, Any] = {}
-        try:
-            messages = self.registry.build_messages(
-                "sql",
-                {"semantic_context": schema_text, "intent_json": intent_json},
-                version="v1",
-            )
-            resp = await self.router.complete(
-                task=LLMTask.SQL,
-                messages=messages,
-                response_format={"type": "json_object"},
-                temperature=0.0,
-                max_tokens=1024,
-            )
-            sql_spec = json.loads(resp.content)
-            sql = sql_spec.get("sql", "").strip()
-        except Exception as e:
-            logger.warning("analytics_llm_sql_failed_using_deterministic_sql", error=str(e))
-            sql = self._build_deterministic_sql(state)
-            sql_spec = {
-                "sql": sql,
-                "tables": ["fact_sales", "dim_product"],
-                "columns": ["product_name", "net_sales"],
-                "filters": [],
-                "aggregations": ["SUM(net_sales)"],
-                "assumptions": ["Aggregated by product"],
-            }
-
-        # 2. Strict SQL Validation
-        val_res = validate_sql(sql)
-        state["sql_plan"] = SQLPlan(
-            tables=sql_spec.get("tables", []),
-            columns=sql_spec.get("columns", []),
-            filters=sql_spec.get("filters", []),
-            aggregations=sql_spec.get("aggregations", []),
-            assumptions=sql_spec.get("assumptions", []),
-        )
+        # 2. Governed Query Generation & Strict Validation
+        sql, val_res = await self.generator.generate_and_validate(plan, state)
         state["generated_sql"] = sql
-        state["sql_validation"] = SQLValidationResult(
-            valid=val_res.valid,
-            status=val_res.status,
-            errors=val_res.errors,
-            warnings=val_res.warnings,
-            is_read_only=val_res.is_read_only,
-            forbidden_clauses=[e for e in val_res.errors if "Forbidden" in e],
-        )
+        state["sql_validation"] = val_res
 
         if not val_res.valid:
             state["warnings"] = state.get("warnings", []) + [f"SQL validation error: {val_res.errors}"]

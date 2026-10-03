@@ -57,6 +57,9 @@ class TokenUsage(BaseModel):
     completion_tokens: int = 0
     total_tokens: int = 0
 
+    def __getitem__(self, item: str) -> int:
+        return getattr(self, item)
+
 
 class LLMResponse(BaseModel):
     content: str

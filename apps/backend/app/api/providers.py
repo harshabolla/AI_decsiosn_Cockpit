@@ -13,6 +13,7 @@ from typing import Any, Dict
 import structlog
 from fastapi import APIRouter
 
+from app.core.config import settings
 from app.providers.router import get_model_router
 
 logger = structlog.get_logger(__name__)
@@ -45,6 +46,7 @@ async def providers_health() -> Dict[str, Any]:
         }
 
     return {
+        "default_provider": settings.DEFAULT_LLM_PROVIDER,
         "providers": result,
         "note": "Status reflects environment configuration only. No real API calls made.",
     }

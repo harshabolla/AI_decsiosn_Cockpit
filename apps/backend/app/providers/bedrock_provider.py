@@ -82,6 +82,14 @@ class BedrockProvider(LLMProvider):
         return body
 
     async def generate(self, request: LLMRequest) -> LLMResponse:
+        if (
+            not self._access_key_id
+            or self._access_key_id.startswith("AKIA-placeholder")
+            or self._access_key_id.startswith("your-")
+            or self._access_key_id in ("test", "dummy")
+        ):
+            raise RuntimeError("AWS_ACCESS_KEY_ID is not configured or is a placeholder.")
+
         import asyncio
         client = self._get_client()
         start = time.perf_counter()

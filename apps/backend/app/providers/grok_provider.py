@@ -52,6 +52,14 @@ class GrokProvider(LLMProvider):
         return self._client
 
     async def generate(self, request: LLMRequest) -> LLMResponse:
+        if (
+            not self._api_key
+            or self._api_key.startswith("xai-placeholder")
+            or self._api_key.startswith("your-")
+            or self._api_key in ("test", "dummy")
+        ):
+            raise RuntimeError("XAI_API_KEY is not configured or is a placeholder.")
+
         client = self._get_client()
         start = time.perf_counter()
 

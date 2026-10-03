@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Opella AI Decision Cockpit
 
 > **Enterprise Multimodal AI & Data Engineering Platform**  
@@ -101,3 +102,7 @@ pytest tests/
 - [Prompts Registry](prompts/)
 - [Semantic Layer Configuration](apps/backend/app/semantic/)
 - [DBT Transformation Models](dbt/)
+=======
+# AI_decsiosn_Cockpit
+
+>>>>>>> 719633a101d017e7f13a2b6947cf02c39ff4d716

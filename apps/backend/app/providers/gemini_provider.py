@@ -68,6 +68,14 @@ class GeminiProvider(LLMProvider):
         return system_instruction, gemini_messages
 
     async def generate(self, request: LLMRequest) -> LLMResponse:
+        if (
+            not self._api_key
+            or self._api_key.startswith("AIzaSy-placeholder")
+            or self._api_key.startswith("your-")
+            or self._api_key in ("test", "dummy")
+        ):
+            raise RuntimeError("GEMINI_API_KEY is not configured or is a placeholder.")
+
         import asyncio
         genai = self._get_genai()
         start = time.perf_counter()
